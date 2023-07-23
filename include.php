@@ -1,7 +1,14 @@
 <?
+
+//! Выносить js в отдельный компонент не нужно, так как теперь формы должны быть инициализированы разработчиком на фронте
+//! И мой js можно вообще игнорировать и использовать просто как пример
+
 CJSCore::RegisterExt('welpodron.feedback', [
-    'js' => '/local/modules/welpodron.feedback/js/form/script.js',
+    'js' => '/bitrix/js/welpodron.feedback/form/script.js',
     'skip_core' => true
 ]);
 
-CJSCore::Init(['welpodron.feedback']);
+//! ВНИМАНИЕ v2 Теперь так как этот js НЕ НУЖЕН ДЛЯ РАБОТЫ МОДУЛЯ ТО ТЕПЕРЬ ОН НЕ ПОДКЛЮЧАЕТСЯ АВТОМАТИЧЕСКИ ПРИ ПОДКЛЮЧЕНИИ МОДУЛЯ 
+//! ЕСЛИ МОЙ JS НУЖЕН ТО ЕГО НУЖНО ПОДКЛЮЧАТЬ ВРУЧНУЮ ТАМ ГДЕ ЭТО НУЖНО ИСПОЛЬЗУЯ Loader::includeModule('welpodron.feedback') + CJSCore::Init(['welpodron.feedback']);   
+//! по большей части это нужно если например вам нужно использовать только php функции модуля, и при этом не подключить лишний js
+// CJSCore::Init(['welpodron.feedback']);

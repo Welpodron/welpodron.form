@@ -2,12 +2,7 @@
 if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) {
     die();
 }
-
-use Bitrix\Main\Config\Option;
-
 $dialogId = 'dialog_' . md5(uniqid('', false));
-
-$moduleId = 'welpodron.feedback';
 ?>
 
 <dialog data-dialog-feedback-success id="<?= $dialogId ?>" class="<?= $dialogId ?>-success">
@@ -15,12 +10,12 @@ $moduleId = 'welpodron.feedback';
         <svg width="65" height="65" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="#55bc51">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
         </svg>
-        <p><?= Option::get($moduleId, 'SUCCESS_TITLE') ?></p>
-        <p><?= Option::get($moduleId, 'SUCCESS_CONTENT') ?></p>
+        <p>Спасибо за заявку!</p>
+        <p>Ваша заявка успешно отправлена. Мы свяжемся с Вами в ближайшее время</p>
     </div>
     <div class="<?= $dialogId ?>-success__footer">
         <button onclick="document.querySelector('#<?= $dialogId ?>').close()" class="<?= $dialogId ?>-success__btn" type="button">
-            <?= Option::get($moduleId, 'SUCCESS_BTN_LABEL') ?>
+            Закрыть
         </button>
     </div>
     <script>
