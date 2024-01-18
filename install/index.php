@@ -28,8 +28,8 @@ class welpodron_feedback extends CModule
         global $APPLICATION;
 
         try {
-            if (!CopyDirFiles(__DIR__ . '/js/', Application::getDocumentRoot() . '/bitrix/js', true, true)) {
-                $APPLICATION->ThrowException('Не удалось скопировать js');
+            if (!CopyDirFiles(__DIR__ . '/packages/', Application::getDocumentRoot() . '/local/packages', true, true)) {
+                $APPLICATION->ThrowException('Не удалось скопировать используемый модулем пакет');
                 return false;
             };
         } catch (\Throwable $th) {
@@ -42,7 +42,7 @@ class welpodron_feedback extends CModule
 
     public function UnInstallFiles()
     {
-        Directory::deleteDirectory(Application::getDocumentRoot() . '/bitrix/js/welpodron.feedback');
+        Directory::deleteDirectory(Application::getDocumentRoot() . '/local/packages/' . $this->MODULE_ID);
     }
 
     public function DoInstall()

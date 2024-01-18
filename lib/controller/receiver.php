@@ -473,7 +473,11 @@ class Receiver extends Controller
                     $arResult = $event->getParameters();
 
                     if ($arResult['FIELD_VALID']) {
-                        $arDataValid[$arProp['CODE']] = $arDataRaw[$arProp['CODE']];
+                        if ($arProp['PROPERTY_TYPE'] === "F") {
+                            $arDataValid[$arProp['CODE']] = $postValue;
+                        } else {
+                            $arDataValid[$arProp['CODE']] = $arDataRaw[$arProp['CODE']];
+                        }
                     } else {
                         return;
                     }
