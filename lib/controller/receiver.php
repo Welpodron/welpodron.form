@@ -14,12 +14,12 @@ use Bitrix\Main\Type\DateTime;
 use Bitrix\Main\Mail\Event as MailEvent;
 use Bitrix\Main\Event as MainEvent;
 use Bitrix\Main\UserConsent\Consent;
+use Bitrix\Main\UserConsent\Agreement;
+use Bitrix\Iblock\PropertyTable;
 
 class Receiver extends Controller
 {
     //??? TODO: v3 Добавить хуки перед заполнением HTML ответа пользователю, чтобы можно было изменить его содержимое
-    //??? TODO: v3 Добавить возможность пробрасывать переменные в PHP шаблон ответа пользователю (например ошибки, результаты валидации и т.д.)
-    //! TODO: v2.1 Добавить поддержку обработки поля пользовательского соглашения в настройках задавать свойство + проверка на обязательность + добавление в таблицу принятых пользовательских соглашений Bitrix API
     //! TODO: v3 Переместить в основной класс модуля
     //! TODO: v3 Добавить работу с файлами
     const DEFAULT_FIELD_VALIDATION_ERROR_CODE = "FIELD_VALIDATION_ERROR";
@@ -33,6 +33,8 @@ class Receiver extends Controller
     const DEFAULT_EVENTS_BEFORE_FIELD_VALIDATION = 'OnBeforeFieldValidation';
     const DEFAULT_EVENTS_AFTER_FIELD_VALIDATION = 'OnAfterFieldValidation';
 
+    const DEFAULT_ERROR_CONTENT = "При обработке Вашего запроса произошла ошибка, повторите попытку позже или свяжитесь с администрацией сайта";
+
 
     //! Данный метод обязателен если мы не хотим получить invalid_authentication https://qna.habr.com/q/1043030
     protected function getDefaultPreFilters()
@@ -40,10 +42,63 @@ class Receiver extends Controller
         return [];
     }
 
-    private function validateField($arField, $value, $bannedSymbols = [])
+    private function validateFile($arField, $arFile, $rawValue)
     {
+        $maxFileSize = intval(Option::get(SELF::DEFAULT_MODULE_ID, 'MAX_FILE_SIZE')) * 1024 * 1024;
+
+        if ($maxFileSize) {
+            if ($arFile['size'] > $maxFileSize) {
+                $error = 'Поле: "' . $arField['NAME'] . '"' . ' содержит файл: "' . $arFile['name'] . '" размером: ' . $arFile['size']  . ' байт, максимально допустимый размер файла: ' . $maxFileSize . ' байт';
+                $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
+                return [
+                    'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
+                    'FIELD_ID' => $arField['ID'],
+                    'FIELD_CODE' => $arField['CODE'],
+                    'FIELD_VALUE' => $rawValue,
+                    'FIELD_VALID' => false,
+                    'FIELD_ERROR' => $error,
+                ];
+            }
+        }
+
+        $supportedTypes = [];
+        $supportedTypesRaw = preg_split('/(\s*,*\s*)*,+(\s*,*\s*)*/', trim(strval($arField['FILE_TYPE'])));
+        if ($supportedTypesRaw) {
+            $arSupportedTypesRawFiltered = array_filter($supportedTypesRaw, function ($value) {
+                return $value !== null && $value !== '';
+            });
+            $supportedTypes = array_values($arSupportedTypesRawFiltered);
+        }
+
+        if ($supportedTypes) {
+            $currentFileExt = GetFileExtension($arFile['name']);
+            if (!in_array($currentFileExt, $supportedTypes)) {
+                $error = 'Поле: "' . $arField['NAME'] . '" содержит файл: "' . $arFile['name'] . '" неподдерживаемого типа: "' . $currentFileExt . '"' . ' поддерживаемые типы: "' . implode(' ', $supportedTypes) . '"';
+                $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
+                return [
+                    'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
+                    'FIELD_ID' => $arField['ID'],
+                    'FIELD_CODE' => $arField['CODE'],
+                    'FIELD_VALUE' => $rawValue,
+                    'FIELD_VALID' => false,
+                    'FIELD_ERROR' => $error,
+                ];
+            }
+        }
+
+        return true;
+    }
+
+    private function validateField($arField, $_value, $bannedSymbols = [])
+    {
+        if (is_array($_value)) {
+            $value = $_value;
+        } else {
+            $value = trim(strval($_value));
+        }
+
         // Проверка на обязательность заполнения
-        if ($arField['IS_REQUIRED'] == 'Y' && !strlen($value)) {
+        if ($arField['IS_REQUIRED'] == 'Y' && empty($value)) {
             $error = 'Поле: "' . $arField['NAME'] . '" является обязательным для заполнения';
             $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
             return [
@@ -56,12 +111,42 @@ class Receiver extends Controller
             ];
         }
 
-        // Проверка на наличие запрещенных символов 
-        if (strlen($value)) {
-            if ($bannedSymbols) {
-                foreach ($bannedSymbols as $bannedSymbol) {
-                    if (strpos($value, $bannedSymbol) !== false) {
-                        $error = 'Поле: "' . $arField['NAME'] . '" содержит один из запрещенных символов: "' . implode(' ', $bannedSymbols) . '"';
+        if ($arField['PROPERTY_TYPE'] === "F") {
+            $maxFilesAmount = intval(Option::get(self::DEFAULT_MODULE_ID, 'MAX_FILES_AMOUNT'));
+
+            if ($arField['MULTIPLE'] !== "Y") {
+                $maxFilesAmount = 1;
+            }
+
+            if ($maxFilesAmount) {
+                if (count($value) > $maxFilesAmount) {
+                    $error = 'Поле: "' . $arField['NAME'] . '"' . ' содержит ' . count($value)  . ' файлов, максимально допустимое количество файлов: ' . $maxFilesAmount;
+                    $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
+                    return [
+                        'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
+                        'FIELD_ID' => $arField['ID'],
+                        'FIELD_CODE' => $arField['CODE'],
+                        'FIELD_VALUE' => $value,
+                        'FIELD_VALID' => false,
+                        'FIELD_ERROR' => $error,
+                    ];
+                }
+            }
+
+            $maxFilesSize = intval(Option::get(self::DEFAULT_MODULE_ID, 'MAX_FILES_SIZES')) * 1024 * 1024;
+
+            $currentTotalSize = 0;
+
+            foreach ($value as $file) {
+                if (!$this->validateFile($arField, $file, $value)) {
+                    return;
+                }
+
+                $currentTotalSize += $file['size'];
+
+                if ($maxFilesSize) {
+                    if ($currentTotalSize > $maxFilesSize) {
+                        $error = 'Поле: "' . $arField['NAME'] . '"' . ' содержит файлы суммарным размером: ' . $currentTotalSize  . ' байт, максимально допустимый суммарный размер файлов: ' . $maxFilesSize . ' байт';
                         $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
                         return [
                             'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
@@ -71,6 +156,43 @@ class Receiver extends Controller
                             'FIELD_VALID' => false,
                             'FIELD_ERROR' => $error,
                         ];
+                    }
+                }
+
+                if ($arField['MULTIPLE'] !== "Y") {
+                    break;
+                }
+            }
+        } elseif ($arField['PROPERTY_TYPE'] === "N") {
+            if (!is_numeric($value)) {
+                $error =  'Поле: "' . $arField['NAME'] . '" должно быть числом';
+                $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
+                return [
+                    'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
+                    'FIELD_ID' => $arField['ID'],
+                    'FIELD_CODE' => $arField['CODE'],
+                    'FIELD_VALUE' => $value,
+                    'FIELD_VALID' => false,
+                    'FIELD_ERROR' => $error,
+                ];
+            }
+        } else {
+            // Проверка на наличие запрещенных символов 
+            if (!is_array($value) && strlen($value)) {
+                if ($bannedSymbols) {
+                    foreach ($bannedSymbols as $bannedSymbol) {
+                        if (strpos($value, $bannedSymbol) !== false) {
+                            $error = 'Поле: "' . $arField['NAME'] . '" содержит один из запрещенных символов: "' . implode(' ', $bannedSymbols) . '"';
+                            $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $arField['CODE']));
+                            return [
+                                'FIELD_IBLOCK_ID' => $arField['IBLOCK_ID'],
+                                'FIELD_ID' => $arField['ID'],
+                                'FIELD_CODE' => $arField['CODE'],
+                                'FIELD_VALUE' => $value,
+                                'FIELD_VALID' => false,
+                                'FIELD_ERROR' => $error,
+                            ];
+                        }
                     }
                 }
             }
@@ -86,12 +208,88 @@ class Receiver extends Controller
         ];
     }
 
+    private function validateCaptcha($token)
+    {
+        if (!$token) {
+            throw new \Exception('Ожидался токен от капчи. Запрос должен иметь заполненное POST поле: "g-recaptcha-response"');
+        }
+
+        $secretCaptchaKey = Option::get(self::DEFAULT_MODULE_ID, 'GOOGLE_CAPTCHA_SECRET_KEY');
+
+        $httpClient = new HttpClient();
+        $googleCaptchaResponse = Json::decode($httpClient->post(self::DEFAULT_GOOGLE_URL, ['secret' => $secretCaptchaKey, 'response' => $token], true));
+
+        if (!$googleCaptchaResponse['success']) {
+            throw new \Exception('Произошла ошибка при попытке обработать ответ от сервера капчи, проверьте задан ли параметр "GOOGLE_CAPTCHA_SECRET_KEY" в настройках модуля');
+        }
+    }
+
+    private function validateAgreement($arDataRaw)
+    {
+        $agreementProp = Option::get(self::DEFAULT_MODULE_ID, 'AGREEMENT_PROPERTY');
+
+        $agreementId = intval($arDataRaw[$agreementProp]);
+
+        if ($agreementId <= 0) {
+            $error = 'Поле является обязательным для заполнения';
+            $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $agreementProp));
+            return;
+        }
+
+        $agreement = new Agreement($agreementId);
+
+        if (!$agreement->isExist() || !$agreement->isActive()) {
+            throw new \Exception('Соглашение c id ' . $agreementId . ' не найдено или не активно');
+        }
+
+        return true;
+    }
+
+    private function validateIblock($arDataRaw)
+    {
+        $iblockProp = trim(Option::get(self::DEFAULT_MODULE_ID, 'IBLOCK_PROPERTY'));
+
+        if (!$iblockProp) {
+            throw new \Exception('Не задан код поля инфоблока в настройках модуля');
+        }
+
+        $iblockId = intval($arDataRaw[$iblockProp]);
+
+        if ($iblockId <= 0) {
+            $error = 'Поле является обязательным для заполнения';
+            $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $iblockProp));
+            return;
+        }
+
+        if (!\CIBlock::GetList([], ['ID' => $iblockId])->Fetch()) {
+            throw new \Exception('Инфоблок c id ' . $iblockId . ' не найден');
+        }
+
+        $arAllowedIblocks = explode(',', Option::get(self::DEFAULT_MODULE_ID, 'RESTRICTIONS_IBLOCK_ID'));
+
+        if (!is_array($arAllowedIblocks) || empty($arAllowedIblocks)) {
+            throw new \Exception('Не заданы разрешенные инфоблоки в настройках модуля');
+        }
+
+        if (!in_array($arDataRaw[$iblockProp], $arAllowedIblocks)) {
+            throw new \Exception('Инфоблок c id ' . $iblockId . ' не разрешен для использования');
+        }
+
+        return true;
+    }
+
     // Вызов из BX.ajax.runAction - welpodron:feedback.Receiver.add
     public function addAction()
     {
         global $APPLICATION;
 
         try {
+            if (!$_SERVER['HTTP_USER_AGENT']) {
+                throw new \Exception('Поисковые боты не могут отправлять формы');
+            } elseif (preg_match('/bot|crawl|curl|dataprovider|search|get|spider|find|java|majesticsEO|google|yahoo|teoma|contaxe|yandex|libwww-perl|facebookexternalhit/i', $_SERVER['HTTP_USER_AGENT'])) {
+                throw new \Exception('Поисковые боты не могут отправлять формы');
+            }
+
             // В этой версии модуль использует инфоблок как основное хранилище данных
             if (!Loader::includeModule('iblock')) {
                 throw new \Exception('Модуль инфоблоков не установлен');
@@ -121,37 +319,14 @@ class Receiver extends Controller
             $useCaptcha = Option::get(self::DEFAULT_MODULE_ID, 'USE_CAPTCHA') == "Y";
 
             if ($useCaptcha) {
-                $captchaToken = $arDataRaw['g-recaptcha-response'];
-
-                if (!$captchaToken) {
-                    throw new \Exception('Ожидался токен от капчи. Запрос должен иметь заполненное POST поле: "g-recaptcha-response"');
-                }
-
-                $secretCaptchaKey = Option::get(self::DEFAULT_MODULE_ID, 'GOOGLE_CAPTCHA_SECRET_KEY');
-
-                $httpClient = new HttpClient();
-                $googleCaptchaResponse = Json::decode($httpClient->post(self::DEFAULT_GOOGLE_URL, ['secret' => $secretCaptchaKey, 'response' => $captchaToken], true));
-
-                if (!$googleCaptchaResponse['success']) {
-                    throw new \Exception('Произошла ошибка при попытке обработать ответ от сервера капчи, проверьте задан ли параметр "GOOGLE_CAPTCHA_SECRET_KEY" в настройках модуля');
-                }
+                $this->validateCaptcha($arDataRaw['g-recaptcha-response']);
             }
 
             // v2 пользовательское соглашение
             $useCheckAgreement = Option::get(self::DEFAULT_MODULE_ID, 'USE_AGREEMENT_CHECK') == "Y";
 
             if ($useCheckAgreement) {
-                $agreementCheckProp = Option::get(self::DEFAULT_MODULE_ID, 'AGREEMENT_CHECK_PROPERTY');
-
-                if (!$agreementCheckProp) {
-                    throw new \Exception('Ожидалось что в настройках модуля будет задано НЕ ПУСТОЕ свойство для проверки пользовательского соглашения');
-                }
-
-                $agreementCheck = $arDataRaw[$agreementCheckProp];
-
-                if ($agreementCheck != true) {
-                    $error = 'Поле является обязательным для заполнения';
-                    $this->addError(new Error($error, self::DEFAULT_FIELD_VALIDATION_ERROR_CODE, $agreementCheckProp));
+                if (!$this->validateAgreement($arDataRaw)) {
                     return;
                 }
             }
@@ -169,12 +344,25 @@ class Receiver extends Controller
             // TODO: Придумать как получить список свойств инфоблока с сортировкой по обязательности заполнения используя ORM
             // Так как формы скорее всего будут выглядеть абсолютно одинаково, то скорее всего нет смысла делить на разные
 
-            $iblock = Option::get(self::DEFAULT_MODULE_ID, 'IBLOCK_ID');
+            if (!$this->validateIblock($arDataRaw)) {
+                return;
+            }
 
-            $dbProps = \CIBlockProperty::GetList(
-                [],
-                ['IBLOCK_ID' => $iblock],
-            );
+            $iblockProp = trim(Option::get(self::DEFAULT_MODULE_ID, 'IBLOCK_PROPERTY'));
+
+            if (!$iblockProp) {
+                throw new \Exception('Не задан код поля инфоблока в настройках модуля');
+            }
+
+            $iblockId = intval($arDataRaw[$iblockProp]);
+
+            $query = PropertyTable::query();
+            $query->setSelect(['ID', 'IBLOCK_ID', 'CODE', 'NAME', 'PROPERTY_TYPE', 'IS_REQUIRED', 'MULTIPLE', 'FILE_TYPE']);
+            $query->where('IBLOCK_ID', $iblockId);
+            $query->where('ACTIVE', 'Y');
+            $query->where('CODE', '!=', '');
+
+            $arProps = $query->exec()->fetchAll();
 
             $arDataValid = [];
 
@@ -218,7 +406,7 @@ class Receiver extends Controller
 
             */
 
-            while ($arProp = $dbProps->Fetch()) {
+            foreach ($arProps as $arProp) {
                 // Поддержка только полей имеющий символьный код
                 if ($arProp['CODE']) {
                     // Пропускаем служебные поля 
@@ -231,7 +419,7 @@ class Receiver extends Controller
                         self::DEFAULT_MODULE_ID,
                         self::DEFAULT_EVENTS_BEFORE_FIELD_VALIDATION,
                         [
-                            'FIELD_IBLOCK_ID' => $iblock,
+                            'FIELD_IBLOCK_ID' => $iblockId,
                             'FIELD_ID' => $arProp['ID'],
                             'FIELD_CODE' => $arProp['CODE'],
                             'FIELD_VALUE' => $arDataRaw[$arProp['CODE']],
@@ -246,7 +434,31 @@ class Receiver extends Controller
 
                     if ($arResult['FIELD_VALID']) {
                     } else {
-                        $arResult = $this->validateField($arProp, $arDataRaw[$arProp['CODE']], $bannedSymbols);
+                        if ($arProp['PROPERTY_TYPE'] === "F") {
+                            $postRawValue = $request->getFile($arProp['CODE']);
+
+                            $postValue = [];
+
+                            if (is_array($postRawValue)) {
+                                foreach ($postRawValue['size'] as $key => $size) {
+                                    if ($size <= 0) {
+                                        continue;
+                                    }
+
+                                    $postValue[] = [
+                                        'name' => $postRawValue['name'][$key],
+                                        'type' => $postRawValue['type'][$key],
+                                        'tmp_name' => $postRawValue['tmp_name'][$key],
+                                        'error' => $postRawValue['error'][$key],
+                                        'size' => $postRawValue['size'][$key],
+                                    ];
+                                }
+                            }
+
+                            $arResult = $this->validateField($arProp, $postValue, $bannedSymbols);
+                        } else {
+                            $arResult = $this->validateField($arProp, $arDataRaw[$arProp['CODE']], $bannedSymbols);
+                        }
                     }
 
                     // v2 события
@@ -287,7 +499,7 @@ class Receiver extends Controller
 
             if ($useSave) {
                 $arFields = [
-                    'IBLOCK_ID' => $iblock,
+                    'IBLOCK_ID' => $iblockId,
                     'NAME' => 'Заявка ' . (new DateTime())->format("d.m.Y H:i:s"),
                     'PROPERTY_VALUES' => $arDataMerged
                 ];
@@ -305,17 +517,17 @@ class Receiver extends Controller
             if ($useCheckAgreement) {
                 $agreementId = null;
 
-                $agreementIdProp = Option::get(self::DEFAULT_MODULE_ID, 'AGREEMENT_ID_PROPERTY');
+                $agreementProp = Option::get(self::DEFAULT_MODULE_ID, 'AGREEMENT_PROPERTY');
 
-                if (isset($arDataValid[$agreementIdProp])) {
-                    $agreementId = $arDataValid[$agreementIdProp];
+                if (isset($arDataValid[$agreementProp])) {
+                    $agreementId = intval($arDataValid[$agreementProp]);
                 } else {
-                    $agreementId = $arDataRaw[$agreementIdProp];
+                    $agreementId = intval($arDataRaw[$agreementProp]);
                 }
 
-                if ($agreementId) {
+                if ($agreementId > 0) {
                     Consent::addByContext($agreementId, null, null, [
-                        'URL' => $arDataUser['PAGE'],
+                        'URL' => Context::getCurrent()->getServer()->get('HTTP_REFERER'),
                     ]);
                 }
             }
@@ -366,16 +578,27 @@ class Receiver extends Controller
                 }
             }
 
-            $successFile = Option::get(self::DEFAULT_MODULE_ID, 'SUCCESS_FILE');
+            $useSuccessContent = Option::get(self::DEFAULT_MODULE_ID, 'USE_SUCCESS_CONTENT');
 
-            if (!$successFile) {
-                return Option::get(self::DEFAULT_MODULE_ID, 'SUCCESS_CONTENT_DEFAULT');
+            $templateIncludeResult = "";
+
+            if ($useSuccessContent == 'Y') {
+                $templateIncludeResult =  Option::get(self::DEFAULT_MODULE_ID, 'SUCCESS_CONTENT_DEFAULT');
+
+                $successFile = Option::get(self::DEFAULT_MODULE_ID, 'SUCCESS_FILE');
+
+                if ($successFile) {
+                    ob_start();
+                    $APPLICATION->IncludeFile($successFile, [
+                        'arMutation' => [
+                            'PATH' => $successFile,
+                            'PARAMS' => $arDataMerged,
+                        ]
+                    ], ["SHOW_BORDER" => false, "MODE" => "php"]);
+                    $templateIncludeResult = ob_get_contents();
+                    ob_end_clean();
+                }
             }
-
-            ob_start();
-            $APPLICATION->IncludeFile($successFile, [], ["SHOW_BORDER" => false, "MODE" => "php"]);
-            $templateIncludeResult = ob_get_contents();
-            ob_end_clean();
 
             return $templateIncludeResult;
         } catch (\Throwable $th) {
@@ -385,25 +608,37 @@ class Receiver extends Controller
             }
 
             try {
-                $errorFile = Option::get(self::DEFAULT_MODULE_ID, 'ERROR_FILE');
+                $useErrorContent = Option::get(self::DEFAULT_MODULE_ID, 'USE_ERROR_CONTENT');
 
-                if (!$errorFile) {
-                    $this->addError(new Error(Option::get(self::DEFAULT_MODULE_ID, 'ERROR_CONTENT_DEFAULT'), self::DEFAULT_FORM_GENERAL_ERROR_CODE));
+                if ($useErrorContent == 'Y') {
+                    $errorFile = Option::get(self::DEFAULT_MODULE_ID, 'ERROR_FILE');
+
+                    if (!$errorFile) {
+                        $this->addError(new Error(Option::get(self::DEFAULT_MODULE_ID, 'ERROR_CONTENT_DEFAULT'), self::DEFAULT_FORM_GENERAL_ERROR_CODE));
+                        return;
+                    }
+
+                    ob_start();
+                    $APPLICATION->IncludeFile($errorFile, [
+                        'arMutation' => [
+                            'PATH' => $errorFile,
+                            'PARAMS' => [],
+                        ]
+                    ], ["SHOW_BORDER" => false, "MODE" => "php"]);
+                    $templateIncludeResult = ob_get_contents();
+                    ob_end_clean();
+                    $this->addError(new Error($templateIncludeResult));
                     return;
                 }
 
-                ob_start();
-                $APPLICATION->IncludeFile($errorFile, [], ["SHOW_BORDER" => false, "MODE" => "php"]);
-                $templateIncludeResult = ob_get_contents();
-                ob_end_clean();
-                $this->addError(new Error($templateIncludeResult, self::DEFAULT_FORM_GENERAL_ERROR_CODE));
+                $this->addError(new Error(self::DEFAULT_ERROR_CONTENT, self::DEFAULT_FORM_GENERAL_ERROR_CODE));
                 return;
             } catch (\Throwable $th) {
                 if (CurrentUser::get()->isAdmin()) {
                     $this->addError(new Error($th->getMessage(), $th->getCode()));
                     return;
                 } else {
-                    $this->addError(new Error(Option::get(self::DEFAULT_MODULE_ID, 'ERROR_CONTENT_DEFAULT'), self::DEFAULT_FORM_GENERAL_ERROR_CODE));
+                    $this->addError(new Error(self::DEFAULT_ERROR_CONTENT, self::DEFAULT_FORM_GENERAL_ERROR_CODE));
                     return;
                 }
             }

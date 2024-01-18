@@ -1,18 +1,26 @@
 {
   "name": "welpodron.feedback",
   "version": "1.0.0",
-  "description": "",
+  "description": "> **На данный момент не рекомендуется использовать совместно с модулем форм [welpodron.form](https://github.com/Welpodron/welpodron.form)**",
   "main": "index.js",
-  "directories": {
-    "lib": "lib"
-  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Welpodron/welpodron.feedback.git"
+  },
+  "keywords": [
+    "typescript",
+    "bitrix"
+  ],
+  "author": "welpodron",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Welpodron/welpodron.feedback/issues"
+  },
+  "homepage": "https://github.com/Welpodron/welpodron.feedback#readme",
   "devDependencies": {
-    "typescript": "^5.1.6"
+    "uglify-js": "^3.17.4"
   }
 }

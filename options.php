@@ -1,11 +1,12 @@
 <?
-if (!defined('B_PROLOG_INCLUDED') || B_PROLOG_INCLUDED !== true) {
+if (!defined('B_PROLOG_INCLUDED') || constant('B_PROLOG_INCLUDED') !== true) {
     die();
 }
 
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
-use Bitrix\Main\Context;
+
+use Welpodron\Core\Helper;
 
 Loader::includeModule("iblock");
 
@@ -13,7 +14,7 @@ $moduleId = 'welpodron.feedback';
 
 $dbIblocks = CIBlock::GetList();
 
-$arIblocks['-1'] = 'Выберете инфоблок';
+$arIblocks['-1'] = 'Выберите разрешенные инфоблок(и)';
 
 while ($arIblock = $dbIblocks->Fetch()) {
     $arIblocks[$arIblock['ID']] = '[' . $arIblock['ID'] . '] ' . $arIblock["NAME"];
@@ -21,7 +22,7 @@ while ($arIblock = $dbIblocks->Fetch()) {
 
 // v2 убрано только 1 определенное почтовое событие, теперь можно выбрать любое
 $dbMailEvents = CEventType::GetList();
-$arMailEvents['-1'] = 'Выберете почтовое событие';
+$arMailEvents['-1'] = 'Выберите почтовое событие';
 
 while ($arMailEvent = $dbMailEvents->Fetch()) {
     $arMailEvents[$arMailEvent['EVENT_NAME']] = '[' . $arMailEvent['EVENT_NAME'] . '] ' . $arMailEvent["NAME"];
@@ -34,8 +35,25 @@ $arTabs = [
         'TITLE' => 'Основные настройки',
         'GROUPS' => [
             [
-                'TITLE' => 'Сохранение данных',
+                'TITLE' => 'Основные настройки',
                 'OPTIONS' => [
+                    [
+                        'NAME' => 'IBLOCK_PROPERTY',
+                        'LABEL' => 'Код поля в котором хранится инфоблок',
+                        'VALUE' => Option::get($moduleId, 'IBLOCK_PROPERTY'),
+                        'TYPE' => 'text',
+                        'DESCRIPTION' => 'Код поля в котором хранится инфоблок не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента',
+                        'REQUIRED' => 'Y',
+                    ],
+                    [
+                        'NAME' => 'RESTRICTIONS_IBLOCK_ID',
+                        'LABEL' => 'Разрешенные инфоблок(и)',
+                        'VALUE' => Option::get($moduleId, 'RESTRICTIONS_IBLOCK_ID'),
+                        'TYPE' => 'selectbox',
+                        'MULTIPLE' => 'Y',
+                        'REQUIRED' => 'Y',
+                        'OPTIONS' => $arIblocks,
+                    ],
                     [
                         'NAME' => 'USE_SAVE',
                         'LABEL' => 'Сохранять данные в инфоблок',
@@ -43,11 +61,10 @@ $arTabs = [
                         'TYPE' => 'checkbox',
                     ],
                     [
-                        'NAME' => 'IBLOCK_ID',
-                        'LABEL' => 'Инфоблок',
-                        'VALUE' => Option::get($moduleId, 'IBLOCK_ID'),
-                        'TYPE' => 'selectbox',
-                        'OPTIONS' => $arIblocks,
+                        'NAME' => 'USE_SAVE_NOTE',
+                        'LABEL' => '<b style="color: red;">Внимание!</b> Убедитесь что выбранные выше инфоблоки имеют права на запись',
+                        'TYPE' => 'note',
+                        'RELATION' => 'USE_SAVE',
                     ],
                 ],
             ],
@@ -59,6 +76,35 @@ $arTabs = [
                         'LABEL' => 'Список запрещенных символов/слов (через запятую)',
                         'VALUE' => Option::get($moduleId, 'BANNED_SYMBOLS'),
                         'TYPE' => 'textarea',
+                    ],
+                    [
+                        'LABEL' => 'Ограничения на файлы работают только со свойствами инфоблока типа "Файл"',
+                        'TYPE' => 'note',
+                    ],
+                    [
+                        'LABEL' => 'Значения файловых ограничений имеющие: 0, пустые, отрицательные и любые текстовые значения - без ограничений',
+                        'TYPE' => 'note',
+                    ],
+                    [
+                        'NAME' => 'MAX_FILE_SIZE',
+                        'LABEL' => 'Максимальный размер загружаемого файла в МБ',
+                        'VALUE' => Option::get($moduleId, 'MAX_FILE_SIZE'),
+                        'TYPE' => 'number',
+                        'MIN' => 0,
+                    ],
+                    [
+                        'NAME' => 'MAX_FILES_SIZES',
+                        'LABEL' => 'Максимальный суммарный размер загружаемых файлов в МБ (если свойство поддерживает множественное значение)',
+                        'VALUE' => Option::get($moduleId, 'MAX_FILES_SIZES'),
+                        'TYPE' => 'number',
+                        'MIN' => 0,
+                    ],
+                    [
+                        'NAME' => 'MAX_FILES_AMOUNT',
+                        'LABEL' => 'Максимальное количество загружаемых файлов (если свойство поддерживает множественное значение)',
+                        'VALUE' => Option::get($moduleId, 'MAX_FILES_AMOUNT'),
+                        'TYPE' => 'number',
+                        'MIN' => 0,
                     ],
                 ],
             ],
@@ -72,24 +118,12 @@ $arTabs = [
                         'TYPE' => 'checkbox',
                     ],
                     [
-                        'LABEL' => 'Код свойства в котором хранится согласие пользователя на обработку персональных данных не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента',
-                        'TYPE' => 'note'
-                    ],
-                    [
-                        'NAME' => 'AGREEMENT_CHECK_PROPERTY',
-                        'LABEL' => 'Код свойства в котором хранится согласие на обработку персональных данных',
-                        'VALUE' => Option::get($moduleId, 'AGREEMENT_CHECK_PROPERTY'),
+                        'NAME' => 'AGREEMENT_PROPERTY',
+                        'LABEL' => 'Код поля в котором хранится согласие на обработку персональных данных',
+                        'DESCRIPTION' => 'Код поля в котором хранится согласие на обработку персональных данных не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента',
+                        'VALUE' => Option::get($moduleId, 'AGREEMENT_PROPERTY'),
                         'TYPE' => 'text',
-                    ],
-                    [
-                        'LABEL' => 'Код свойства в котором хранится ID пользовательского соглашения не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента. Данный чекбокс позволяет сохранять информацию в список согласий пользователя.<br><br><em>Работает только с включенной опцией "Проверять наличие в данных, пришедших с клиента, наличие согласия на обработку персональных данных"</em>',
-                        'TYPE' => 'note'
-                    ],
-                    [
-                        'NAME' => 'AGREEMENT_ID_PROPERTY',
-                        'LABEL' => 'Код свойства в котором хранится ID пользовательского соглашения',
-                        'VALUE' => Option::get($moduleId, 'AGREEMENT_ID_PROPERTY'),
-                        'TYPE' => 'text',
+                        'RELATION' => 'USE_AGREEMENT_CHECK',
                     ],
                 ],
             ],
@@ -115,12 +149,14 @@ $arTabs = [
                         'VALUE' => Option::get($moduleId, 'NOTIFY_TYPE'),
                         'TYPE' => 'selectbox',
                         'OPTIONS' => $arMailEvents,
+                        'RELATION' => 'USE_NOTIFY',
                     ],
                     [
                         'NAME' => 'NOTIFY_EMAIL',
                         'LABEL' => 'Email менеджера сайта',
                         'VALUE' => Option::get($moduleId, 'NOTIFY_EMAIL'),
                         'TYPE' => 'text',
+                        'RELATION' => 'USE_NOTIFY',
                     ],
                 ],
             ],
@@ -139,16 +175,15 @@ $arTabs = [
                         'VALUE' => Option::get($moduleId, 'RETURN_NOTIFY_TYPE'),
                         'TYPE' => 'selectbox',
                         'OPTIONS' => $arMailEvents,
-                    ],
-                    [
-                        'LABEL' => 'Код свойства в котором хранится email пользователя не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента',
-                        'TYPE' => 'note'
+                        'RELATION'  => 'USE_RETURN_NOTIFY',
                     ],
                     [
                         'NAME' => 'RETURN_NOTIFY_PROPERTY',
-                        'LABEL' => 'Код свойства в котором хранится email пользователя',
+                        'LABEL' => 'Код поля в котором хранится email пользователя',
                         'VALUE' => Option::get($moduleId, 'RETURN_NOTIFY_PROPERTY'),
                         'TYPE' => 'text',
+                        'RELATION'  => 'USE_RETURN_NOTIFY',
+                        'DESCRIPTION' => 'Код поля в котором хранится email пользователя не обязательно должен присутствовать в инфоблоке и берется из данных, полученных с клиента'
                     ],
                 ],
             ],
@@ -173,12 +208,14 @@ $arTabs = [
                         'LABEL' => 'Секретный ключ',
                         'VALUE' => Option::get($moduleId, 'GOOGLE_CAPTCHA_SECRET_KEY'),
                         'TYPE' => 'text',
+                        'RELATION' => 'USE_CAPTCHA',
                     ],
                     [
                         'NAME' => 'GOOGLE_CAPTCHA_PUBLIC_KEY',
                         'LABEL' => 'Публичный ключ (ключ сайта)',
                         'VALUE' => Option::get($moduleId, 'GOOGLE_CAPTCHA_PUBLIC_KEY'),
                         'TYPE' => 'text',
+                        'RELATION' => 'USE_CAPTCHA',
                     ],
                 ],
             ]
@@ -194,36 +231,46 @@ $arTabs = [
                 'TITLE' => 'Настройки внешнего вида ответа',
                 'OPTIONS' => [
                     [
+                        'NAME' => 'USE_SUCCESS_CONTENT',
+                        'LABEL' => 'Использовать успешное сообщение',
+                        'VALUE' => Option::get($moduleId, 'USE_SUCCESS_CONTENT'),
+                        'TYPE' => 'checkbox',
+                    ],
+                    [
                         'NAME' => 'SUCCESS_FILE',
                         'LABEL' => 'PHP файл-шаблон успешного ответа',
                         'VALUE' => Option::get($moduleId, 'SUCCESS_FILE'),
                         'TYPE' => 'file',
-                    ],
-                    [
-                        'NAME' => 'ERROR_FILE',
-                        'LABEL' => 'PHP файл-шаблон ответа с ошибкой',
-                        'VALUE' => Option::get($moduleId, 'ERROR_FILE'),
-                        'TYPE' => 'file',
-                    ],
-                    [
-                        'LABEL' => 'Рекомендуется использовать PHP файл-шаблон успешного ответа. Если PHP файл-шаблон успешного ответа не задан, то будет использоваться содержимое успешного ответа по умолчанию',
-                        'TYPE' => 'note'
+                        'DESCRIPTION' => 'Если PHP файл-шаблон успешного ответа не задан, то будет использоваться содержимое успешного ответа по умолчанию',
+                        'RELATION'  => 'USE_SUCCESS_CONTENT',
                     ],
                     [
                         'NAME' => 'SUCCESS_CONTENT_DEFAULT',
                         'LABEL' => 'Содержимое успешного ответа по умолчанию',
                         'VALUE' => Option::get($moduleId, 'SUCCESS_CONTENT_DEFAULT'),
                         'TYPE' => 'editor',
+                        'RELATION'  => 'USE_SUCCESS_CONTENT',
                     ],
                     [
-                        'LABEL' => 'Рекомендуется использовать PHP файл-шаблон ответа с ошибкой. Если PHP файл-шаблон ответа с ошибкой не задан, то будет использоваться содержимое ответа с ошибкой по умолчанию',
-                        'TYPE' => 'note'
+                        'NAME' => 'USE_ERROR_CONTENT',
+                        'LABEL' => 'Использовать сообщение об ошибке',
+                        'VALUE' => Option::get($moduleId, 'USE_ERROR_CONTENT'),
+                        'TYPE' => 'checkbox',
+                    ],
+                    [
+                        'NAME' => 'ERROR_FILE',
+                        'LABEL' => 'PHP файл-шаблон ответа с ошибкой',
+                        'VALUE' => Option::get($moduleId, 'ERROR_FILE'),
+                        'TYPE' => 'file',
+                        'DESCRIPTION' => 'Если PHP файл-шаблон ответа с ошибкой не задан, то будет использоваться содержимое ответа с ошибкой по умолчанию',
+                        'RELATION'  => 'USE_ERROR_CONTENT',
                     ],
                     [
                         'NAME' => 'ERROR_CONTENT_DEFAULT',
                         'LABEL' => 'Содержимое ответа с ошибкой по умолчанию',
                         'VALUE' => Option::get($moduleId, 'ERROR_CONTENT_DEFAULT'),
                         'TYPE' => 'editor',
+                        'RELATION'  => 'USE_ERROR_CONTENT',
                     ],
                 ],
             ]
@@ -231,138 +278,8 @@ $arTabs = [
     ],
 ];
 
-$request = Context::getCurrent()->getRequest();
-
-if ($request->isPost() && $request['save'] && check_bitrix_sessid()) {
-    foreach ($arTabs as $arTab) {
-        foreach ($arTab['GROUPS'] as $arGroup) {
-            foreach ($arGroup['OPTIONS'] as $arOption) {
-                if ($arOption['TYPE'] == 'note') continue;
-
-                $value = $request->getPost($arOption['NAME']);
-
-                if ($arOption['TYPE'] == "checkbox" && $value != "Y") {
-                    $value = "N";
-                } elseif (is_array($value)) {
-                    $value = implode(",", $value);
-                } elseif ($value === null) {
-                    $value = '';
-                }
-
-                Option::set($moduleId, $arOption['NAME'], $value);
-            }
-        }
-    }
-
-    LocalRedirect($APPLICATION->GetCurPage() . '?lang=' . LANGUAGE_ID . '&mid_menu=1&mid=' . urlencode($moduleId) .
-        '&tabControl_active_tab=' . urlencode($request['tabControl_active_tab']));
+if (Loader::includeModule('welpodron.core')) {
+    Helper::buildOptions($moduleId, $arTabs);
+} else {
+    echo 'Модуль welpodron.core не установлен';
 }
-
-$tabControl = new CAdminTabControl("tabControl", $arTabs, true, true);
-?>
-
-<form name=<?= str_replace('.', '_', $moduleId) ?> method='post'>
-    <? $tabControl->Begin(); ?>
-    <?= bitrix_sessid_post(); ?>
-    <? foreach ($arTabs as $arTab) : ?>
-        <? $tabControl->BeginNextTab(); ?>
-        <? foreach ($arTab['GROUPS'] as $arGroup) : ?>
-            <tr class="heading">
-                <td colspan="2"><?= $arGroup['TITLE'] ?></td>
-            </tr>
-            <? foreach ($arGroup['OPTIONS'] as $arOption) : ?>
-                <tr>
-                    <td style="width: 40%;">
-                        <? if ($arOption['TYPE'] != 'note') : ?>
-                            <label for="<?= $arOption['NAME'] ?>">
-                                <?= $arOption['LABEL'] ?>
-                            </label>
-                        <? endif ?>
-                    </td>
-                    <td>
-                        <? if ($arOption['TYPE'] == 'note') : ?>
-                            <div class="adm-info-message">
-                                <?= $arOption['LABEL'] ?>
-                            </div>
-                        <? elseif ($arOption['TYPE'] == 'checkbox') : ?>
-                            <input <? if ($arOption['VALUE'] == "Y") echo "checked "; ?> type="checkbox" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>" id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" value="Y">
-                        <? elseif ($arOption['TYPE'] == 'textarea') : ?>
-                            <textarea id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" rows="5" cols="80" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>"><?= $arOption['VALUE'] ?></textarea>
-                        <? elseif ($arOption['TYPE'] == 'selectbox') : ?>
-                            <select id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>">
-                                <? foreach ($arOption['OPTIONS'] as $key => $value) : ?>
-                                    <option <? if ($arOption['VALUE'] == $key) echo "selected "; ?> value="<?= $key ?>"><?= $value ?></option>
-                                <? endforeach; ?>
-                            </select>
-                        <? elseif ($arOption['TYPE'] == 'file') : ?>
-                            <?
-                            CAdminFileDialog::ShowScript(
-                                array(
-                                    "event" => str_replace('_', '', 'browsePath' . htmlspecialcharsbx($arOption['NAME'])),
-                                    "arResultDest" => array("FORM_NAME" => str_replace('.', '_', $moduleId), "FORM_ELEMENT_NAME" => $arOption['NAME']),
-                                    "arPath" => array("PATH" => GetDirPath($arOption['VALUE'])),
-                                    "select" => 'F', // F - file only, D - folder only
-                                    "operation" => 'O', // O - open, S - save
-                                    "showUploadTab" => false,
-                                    "showAddToMenuTab" => false,
-                                    "fileFilter" => 'php',
-                                    "allowAllFiles" => true,
-                                    "SaveConfig" => true,
-                                )
-                            );
-                            ?>
-                            <input type="text" id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>" size="80" maxlength="255" value="<?= htmlspecialcharsbx($arOption['VALUE']); ?>">&nbsp;<input type="button" name="<?= ('browse' . htmlspecialcharsbx($arOption['NAME'])) ?>" value="..." onClick="<?= (str_replace('_', '', 'browsePath' . htmlspecialcharsbx($arOption['NAME']))) ?>()">
-                        <? elseif ($arOption['TYPE'] == 'editor') : ?>
-                            <textarea id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" rows="5" cols="80" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>"><?= $arOption['VALUE'] ?></textarea>
-                            <?
-                            //! TODO: v3 Возможно стоит использовать либо AddHTMLEditorFrame либо CLightHTMLEditor либо \Bitrix\Fileman\Block\Editor 
-
-                            // if (CModule::IncludeModule("fileman")) {
-                            //     global $USER;
-
-                            //     $isUserHavePhpAccess = $USER->CanDoOperation('edit_php');
-
-                            //     $optionValue = $arOption['VALUE'];
-
-                            //     if (!$isUserHavePhpAccess) {
-                            //         $optionValue = htmlspecialcharsbx(LPA::PrepareContent(htmlspecialcharsback($optionValue)));
-                            //     }
-
-                            //     CFileMan::AddHTMLEditorFrame(
-                            //         "MESSAGE",
-                            //         $optionValue,
-                            //         "BODY_TYPE",
-                            //         '',
-                            //         array(
-                            //             'height' => 450,
-                            //             'width' => '100%'
-                            //         ),
-                            //         "N",
-                            //         0,
-                            //         "",
-                            //         "onfocus=\"t=this\"",
-                            //         false,
-                            //         !$isUserHavePhpAccess,
-                            //         false,
-                            //         array(
-                            //             //'saveEditorKey' => $IBLOCK_ID,
-                            //             //'site_template_type' => 'mail',
-                            //             'templateID' => '',
-                            //             'componentFilter' => array('TYPE' => 'mail'),
-                            //             'limit_php_access' => !$isUserHavePhpAccess
-                            //         )
-                            //     );
-                            // } else {
-                            // }
-                            ?>
-                        <? else : ?>
-                            <input id="<?= htmlspecialcharsbx($arOption['NAME']) ?>" name="<?= htmlspecialcharsbx($arOption['NAME']) ?>" type="text" size="80" maxlength="255" value="<?= $arOption['VALUE'] ?>">
-                        <? endif; ?>
-                    </td>
-                </tr>
-            <? endforeach; ?>
-        <? endforeach; ?>
-    <? endforeach; ?>
-    <? $tabControl->Buttons(['btnApply' => false, 'btnCancel' => false, 'btnSaveAndAdd' => false]); ?>
-    <? $tabControl->End(); ?>
-</form>

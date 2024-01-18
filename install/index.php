@@ -16,6 +16,8 @@ class welpodron_feedback extends CModule
     // marketplace fix
     var $MODULE_ID = 'welpodron.feedback';
 
+    private $DEFAULT_OPTIONS = [];
+
     const DEFAULT_IBLOCK_TYPE = "welpodron_feedback";
     const DEFAULT_MAIL_EVENT_TYPE = 'WELPODRON_FEEDBACK';
     const DEFAULT_MAIL_RETURN_EVENT_TYPE = 'WELPODRON_FEEDBACK_RETURN';
@@ -26,10 +28,6 @@ class welpodron_feedback extends CModule
         global $APPLICATION;
 
         try {
-            if (!CopyDirFiles(__DIR__ . '/components/', Application::getDocumentRoot() . '/bitrix/components', true, true)) {
-                $APPLICATION->ThrowException('Не удалось скопировать компоненты');
-                return false;
-            };
             if (!CopyDirFiles(__DIR__ . '/js/', Application::getDocumentRoot() . '/bitrix/js', true, true)) {
                 $APPLICATION->ThrowException('Не удалось скопировать js');
                 return false;
@@ -44,8 +42,6 @@ class welpodron_feedback extends CModule
 
     public function UnInstallFiles()
     {
-        Directory::deleteDirectory(Application::getDocumentRoot() . '/bitrix/components/welpodron/feedback.agreement');
-        Directory::deleteDirectory(Application::getDocumentRoot() . '/bitrix/components/welpodron/feedback.agreement.request');
         Directory::deleteDirectory(Application::getDocumentRoot() . '/bitrix/js/welpodron.feedback');
     }
 
@@ -55,6 +51,11 @@ class welpodron_feedback extends CModule
 
         if (!CheckVersion(ModuleManager::getVersion('main'), '14.00.00')) {
             $APPLICATION->ThrowException('Версия главного модуля ниже 14.00.00');
+            return false;
+        }
+
+        if (!Loader::includeModule('welpodron.core')) {
+            $APPLICATION->ThrowException('Модуль welpodron.core не был найден');
             return false;
         }
 
@@ -136,9 +137,7 @@ class welpodron_feedback extends CModule
         global $APPLICATION;
 
         try {
-            foreach ($this->DEFAULT_OPTIONS as $optionName => $optionValue) {
-                Option::delete($this->MODULE_ID, ['name' => $optionName]);
-            }
+            Option::delete($this->MODULE_ID);
         } catch (\Throwable $th) {
             $APPLICATION->ThrowException($th->getMessage() . '\n' . $th->getTraceAsString());
             return false;
@@ -304,7 +303,10 @@ class welpodron_feedback extends CModule
                 $iblockId = $firstFoundIblock['ID'];
             }
 
-            $this->DEFAULT_OPTIONS['IBLOCK_ID'] = $iblockId;
+            $this->DEFAULT_OPTIONS['USE_SAVE'] = "Y";
+
+            //!  CHANGE
+            $this->DEFAULT_OPTIONS['RESTRICTIONS_IBLOCK_ID'] = strval($iblockId);
         } catch (\Throwable $th) {
             $APPLICATION->ThrowException($th->getMessage() . '\n' . $th->getTraceAsString());
             return false;
@@ -607,15 +609,11 @@ class welpodron_feedback extends CModule
 
         $this->DEFAULT_OPTIONS = [
             'BANNED_SYMBOLS' => '<,>,&,*,^,%,$,`,~,#,href,eval,script,/,\\,=,!,?',
-            'USE_CAPTCHA' => 'N',
             'USE_AGREEMENT_CHECK' => 'N',
-            'AGREEMENT_CHECK_PROPERTY' => '',
-            'AGREEMENT_ID_PROPERTY' => '',
-            'GOOGLE_CAPTCHA_SECRET_KEY' => '',
-            'GOOGLE_CAPTCHA_PUBLIC_KEY' => '',
-            'SUCCESS_FILE' => '',
+            'USE_CAPTCHA' => 'N',
+            'USE_SUCCESS_CONTENT' => 'Y',
             'SUCCESS_CONTENT_DEFAULT' => '<p>Спасибо за заявку, в ближайшее время с Вами свяжется наш менеджер</p>',
-            'ERROR_FILE' => '',
+            'USE_ERROR_CONTENT' => 'Y',
             'ERROR_CONTENT_DEFAULT' => '<p>При обработке Вашего запроса произошла ошибка, повторите попытку позже или свяжитесь с администрацией сайта</p>',
         ];
 
