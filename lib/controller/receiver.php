@@ -1,6 +1,6 @@
 <?
 
-namespace Welpodron\Feedback\Controller;
+namespace Welpodron\Form\Controller;
 
 use Bitrix\Main\Engine\Controller;
 use Bitrix\Main\Web\Json;
@@ -21,10 +21,9 @@ class Receiver extends Controller
 {
     //??? TODO: v3 Добавить хуки перед заполнением HTML ответа пользователю, чтобы можно было изменить его содержимое
     //! TODO: v3 Переместить в основной класс модуля
-    //! TODO: v3 Добавить работу с файлами
     const DEFAULT_FIELD_VALIDATION_ERROR_CODE = "FIELD_VALIDATION_ERROR";
     const DEFAULT_FORM_GENERAL_ERROR_CODE = "FORM_GENERAL_ERROR";
-    const DEFAULT_MODULE_ID = 'welpodron.feedback';
+    const DEFAULT_MODULE_ID = 'welpodron.Form';
     const DEFAULT_GOOGLE_URL = "https://www.google.com/recaptcha/api/siteverify";
 
     // v2 События
@@ -35,14 +34,13 @@ class Receiver extends Controller
 
     const DEFAULT_ERROR_CONTENT = "При обработке Вашего запроса произошла ошибка, повторите попытку позже или свяжитесь с администрацией сайта";
 
-
     //! Данный метод обязателен если мы не хотим получить invalid_authentication https://qna.habr.com/q/1043030
     protected function getDefaultPreFilters()
     {
         return [];
     }
 
-    private function validateFile($arField, $arFile, $rawValue)
+    protected function validateFile($arField, $arFile, $rawValue)
     {
         $maxFileSize = intval(Option::get(SELF::DEFAULT_MODULE_ID, 'MAX_FILE_SIZE')) * 1024 * 1024;
 
@@ -89,7 +87,7 @@ class Receiver extends Controller
         return true;
     }
 
-    private function validateField($arField, $_value, $bannedSymbols = [])
+    protected function validateField($arField, $_value, $bannedSymbols = [])
     {
         if (is_array($_value)) {
             $value = $_value;
@@ -208,7 +206,7 @@ class Receiver extends Controller
         ];
     }
 
-    private function validateCaptcha($token)
+    protected function validateCaptcha($token)
     {
         if (!$token) {
             throw new \Exception('Ожидался токен от капчи. Запрос должен иметь заполненное POST поле: "g-recaptcha-response"');
@@ -224,7 +222,7 @@ class Receiver extends Controller
         }
     }
 
-    private function validateAgreement($arDataRaw)
+    protected function validateAgreement($arDataRaw)
     {
         $agreementProp = Option::get(self::DEFAULT_MODULE_ID, 'AGREEMENT_PROPERTY');
 
@@ -245,7 +243,7 @@ class Receiver extends Controller
         return true;
     }
 
-    private function validateIblock($arDataRaw)
+    protected function validateIblock($arDataRaw)
     {
         $iblockProp = trim(Option::get(self::DEFAULT_MODULE_ID, 'IBLOCK_PROPERTY'));
 
@@ -278,7 +276,7 @@ class Receiver extends Controller
         return true;
     }
 
-    // Вызов из BX.ajax.runAction - welpodron:feedback.Receiver.add
+    // Вызов из BX.ajax.runAction - welpodron:Form.Receiver.add
     public function addAction()
     {
         global $APPLICATION;

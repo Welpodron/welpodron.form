@@ -1,6 +1,6 @@
-import { formFeedback } from '.';
+import { form } from '.';
 
-describe('formFeedback', () => {
+describe('form', () => {
   //! TODO: Добавить тесты мока для fetch
   it('Форма должна быть заблокирована для отправки при инициализации компонента, если присутствуют невалидные поля', () => {
     // INITIAL SETUP
@@ -13,7 +13,7 @@ describe('formFeedback', () => {
         <input type="submit" value="Кнопка через input" />
     </form>`;
 
-    const instance = new formFeedback({
+    const instance = new form({
       element: document.forms[0],
     });
 

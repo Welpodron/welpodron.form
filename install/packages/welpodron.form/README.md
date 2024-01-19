@@ -1,6 +1,6 @@
-# Пакет модуля welpodron.feedback
+# Пакет модуля welpodron.form
 
-Данный пакет содержит стили и скрипты входящие в модуль welpodron.feedback 
+Данный пакет содержит стили и скрипты входящие в модуль welpodron.form 
 
 **Текущая версия документации: https://welpodron-docs.ru/**
 

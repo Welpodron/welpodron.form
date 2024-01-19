@@ -1,15 +1,15 @@
 {
-  "name": "welpodron.feedback",
+  "name": "welpodron.form",
   "version": "1.0.0",
   "description": "> **На данный момент не рекомендуется использовать совместно с модулем форм [welpodron.form](https://github.com/Welpodron/welpodron.form)**",
   "scripts": {
-    "build:package": "cd ./install/packages/welpodron.feedback && npm install && npm run compile",
+    "build:package": "cd ./install/packages/welpodron.form && npm install && npm run compile",
     "build:module": "node build.mjs",
     "build": "npm run build:package && npm run build:module"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Welpodron/welpodron.feedback.git"
+    "url": "git+https://github.com/Welpodron/welpodron.form.git"
   },
   "keywords": [
     "bitrix"
@@ -17,9 +17,9 @@
   "author": "welpodron",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/Welpodron/welpodron.feedback/issues"
+    "url": "https://github.com/Welpodron/welpodron.form/issues"
   },
-  "homepage": "https://github.com/Welpodron/welpodron.feedback#readme",
+  "homepage": "https://github.com/Welpodron/welpodron.form#readme",
   "devDependencies": {
     "archiver": "^6.0.1",
     "fast-glob": "^3.3.2"

@@ -1,6 +1,6 @@
 import { templater, utils } from 'welpodron.core';
 
-const MODULE_BASE = 'feedback';
+const MODULE_BASE = 'form';
 
 const EVENT_SUBMIT_BEFORE = `welpodron.${MODULE_BASE}:submit:before`;
 const EVENT_SUBMIT_AFTER = `welpodron.${MODULE_BASE}:submit:after`;
@@ -18,14 +18,14 @@ type _BitrixResponse = {
   }[];
 };
 
-type FeedbackConfigType = {};
+type FormConfigType = {};
 
-type FormFeedbackPropsType = {
+type FormPropsType = {
   element: HTMLFormElement;
-  config?: FeedbackConfigType;
+  config?: FormConfigType;
 };
 
-class FormFeedback {
+class Form {
   element: HTMLFormElement;
 
   action: string = '';
@@ -41,7 +41,7 @@ class FormFeedback {
     | null = null;
   captchaKey: string | null = null;
 
-  constructor({ element, config = {} }: FormFeedbackPropsType) {
+  constructor({ element, config = {} }: FormPropsType) {
     this.element = element;
 
     this.element.addEventListener('input', this.handleFormInput);
@@ -173,6 +173,11 @@ class FormFeedback {
         throw new Error(response.statusText);
       }
 
+      if (response.redirected) {
+        window.location.href = response.url;
+        return;
+      }
+
       const result: _BitrixResponse = await response.json();
 
       if (result.status === 'error') {
@@ -287,8 +292,4 @@ class FormFeedback {
   };
 }
 
-export {
-  FormFeedback as formFeedback,
-  FormFeedbackPropsType,
-  FeedbackConfigType,
-};
+export { Form as form, FormPropsType, FormConfigType };

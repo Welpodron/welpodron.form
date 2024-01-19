@@ -3,7 +3,7 @@
 return [
     'controllers' => [
         'value' => [
-            'defaultNamespace' => '\\Welpodron\\Feedback\\Controller',
+            'defaultNamespace' => '\\Welpodron\\Form\\Controller',
         ],
         'readonly' => true,
     ]

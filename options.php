@@ -10,7 +10,7 @@ use Welpodron\Core\Helper;
 
 Loader::includeModule("iblock");
 
-$moduleId = 'welpodron.feedback';
+$moduleId = 'welpodron.form';
 
 $dbIblocks = CIBlock::GetList();
 

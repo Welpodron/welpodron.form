@@ -1,6 +1,21 @@
 <?
-CJSCore::RegisterExt('welpodron.feedback.form', [
-    'js' => '/local/packages/welpodron.feedback/iife/form/index.js',
+CJSCore::RegisterExt('welpodron.form', [
+    'js' => '/local/packages/welpodron.form/iife/form/index.js',
     'skip_core' => true,
     'rel' => ['welpodron.core.utils', 'welpodron.core.templater'],
+]);
+
+CJSCore::RegisterExt('welpodron.form.inputs.tel', [
+    'js' => '/local/packages/welpodron.form/iife/inputs/_tel/index.js',
+    'skip_core' => true
+]);
+
+CJSCore::RegisterExt('welpodron.form.inputs.number', [
+    'js' => '/local/packages/welpodron.form/iife/inputs/_number/index.js',
+    'skip_core' => true
+]);
+
+CJSCore::RegisterExt('welpodron.form.inputs.calendar', [
+    'js' => '/local/packages/welpodron.form/iife/inputs/_calendar/index.js',
+    'skip_core' => true
 ]);

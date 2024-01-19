@@ -1,10 +1,10 @@
 {
-    "name": "welpodron.feedback",
+    "name": "welpodron.form",
     "version": "2.1.0",
-    "description": "Js и css библиотека Bitrix модуля welpodron.feedback",
+    "description": "Js и css библиотека Bitrix модуля welpodron.form",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/Welpodron/welpodron.feedback.git"
+        "url": "git+https://github.com/Welpodron/welpodron.form.git"
     },
     "scripts": {
         "types:clean": "npx rimraf types",
@@ -31,9 +31,9 @@
     },
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/Welpodron/welpodron.feedback/issues"
+        "url": "https://github.com/Welpodron/welpodron.form/issues"
     },
-    "homepage": "https://github.com/Welpodron/welpodron.feedback#readme",
+    "homepage": "https://github.com/Welpodron/welpodron.form#readme",
     "dependencies": {
         "welpodron.core": "^2.1.1"
     },
