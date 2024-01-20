@@ -7,20 +7,20 @@ use Bitrix\Main\Context;
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\IO\Directory;
 
-class welpodron_feedback extends CModule
+class welpodron_form extends CModule
 {
     //! TODO: v3 ЛОКАЛИЗАЦИЯ!
     //! TODO: v3 Сделать динамические options.php похожее как при компонентах, чтобы например какие-то опции показывались только если включен определенный функционал
     //! TODO: v3 Добавить возможность в событиях полностью прерывать работу контроллера и сразу уведомлять пользователя об ошибке  
     //! TODO: v3 Добавить кастомный инсталер с возможностью уже на этапе установки выбрать готовый тип инфоблока и тд
     // marketplace fix
-    var $MODULE_ID = 'welpodron.feedback';
+    var $MODULE_ID = 'welpodron.form';
 
     private $DEFAULT_OPTIONS = [];
 
-    const DEFAULT_IBLOCK_TYPE = "welpodron_feedback";
-    const DEFAULT_MAIL_EVENT_TYPE = 'WELPODRON_FEEDBACK';
-    const DEFAULT_MAIL_RETURN_EVENT_TYPE = 'WELPODRON_FEEDBACK_RETURN';
+    const DEFAULT_IBLOCK_TYPE = "welpodron_form";
+    const DEFAULT_MAIL_EVENT_TYPE = 'WELPODRON_FORM';
+    const DEFAULT_MAIL_RETURN_EVENT_TYPE = 'WELPODRON_FORM_RETURN';
     const DEFAULT_RETURN_NOTIFY_PROPERTY = 'email';
 
     public function InstallFiles()
@@ -28,8 +28,8 @@ class welpodron_feedback extends CModule
         global $APPLICATION;
 
         try {
-            if (!CopyDirFiles(__DIR__ . '/js/', Application::getDocumentRoot() . '/bitrix/js', true, true)) {
-                $APPLICATION->ThrowException('Не удалось скопировать js');
+            if (!CopyDirFiles(__DIR__ . '/packages/', Application::getDocumentRoot() . '/local/packages', true, true)) {
+                $APPLICATION->ThrowException('Не удалось скопировать используемый модулем пакет');
                 return false;
             };
         } catch (\Throwable $th) {
@@ -42,7 +42,7 @@ class welpodron_feedback extends CModule
 
     public function UnInstallFiles()
     {
-        Directory::deleteDirectory(Application::getDocumentRoot() . '/bitrix/js/welpodron.feedback');
+        Directory::deleteDirectory(Application::getDocumentRoot() . '/local/packages/' . $this->MODULE_ID);
     }
 
     public function DoInstall()
@@ -166,8 +166,8 @@ class welpodron_feedback extends CModule
                     'SECTIONS' => 'N',
                     'LANG' => [
                         'en' => [
-                            'NAME' => 'Welpodron feedback',
-                            'ELEMENT_NAME' => 'Feedback',
+                            'NAME' => 'Welpodron form',
+                            'ELEMENT_NAME' => 'Form',
                         ],
                         'ru' => [
                             'NAME' => 'Welpodron заявки',
@@ -601,9 +601,9 @@ class welpodron_feedback extends CModule
 
     public function __construct()
     {
-        $this->MODULE_ID = 'welpodron.feedback';
-        $this->MODULE_NAME = 'Обратная связь (welpodron.feedback)';
-        $this->MODULE_DESCRIPTION = 'Модуль для работы с формами обратной связи';
+        $this->MODULE_ID = 'welpodron.form';
+        $this->MODULE_NAME = 'Формы (welpodron.form)';
+        $this->MODULE_DESCRIPTION = 'Модуль для работы с формами';
         $this->PARTNER_NAME = 'Welpodron';
         $this->PARTNER_URI = 'https://github.com/Welpodron';
 
