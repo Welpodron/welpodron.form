@@ -23,7 +23,7 @@ class Receiver extends Controller
     //! TODO: v3 Переместить в основной класс модуля
     const DEFAULT_FIELD_VALIDATION_ERROR_CODE = "FIELD_VALIDATION_ERROR";
     const DEFAULT_FORM_GENERAL_ERROR_CODE = "FORM_GENERAL_ERROR";
-    const DEFAULT_MODULE_ID = 'welpodron.Form';
+    const DEFAULT_MODULE_ID = 'welpodron.form';
     const DEFAULT_GOOGLE_URL = "https://www.google.com/recaptcha/api/siteverify";
 
     // v2 События

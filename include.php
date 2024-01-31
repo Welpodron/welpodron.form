@@ -1,4 +1,9 @@
 <?
+
+use Bitrix\Main\Loader;
+
+Loader::includeModule("welpodron.core");
+
 CJSCore::RegisterExt('welpodron.form', [
     'js' => '/local/packages/welpodron.form/iife/form/index.js',
     'skip_core' => true,
