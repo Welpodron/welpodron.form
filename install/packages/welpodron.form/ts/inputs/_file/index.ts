@@ -20,17 +20,80 @@ const ATTRIBUTE_ACTION_FORCE = `${ATTRIBUTE_ACTION}-force`;
 const ATTRIBUTE_DROPZONE = `${ATTRIBUTE_BASE}-dropzone`;
 const ATTRIBUTE_DROPZONE_ACTIVE = `${ATTRIBUTE_DROPZONE}-active`;
 
-type DropzonePropsType = {
-  element: HTMLElement;
+const _ATTRIBUTE_FETCHER = `${ATTRIBUTE_BASE}-fetcher`;
+
+type _FetcherPropsType<BaseElementType extends HTMLElement> = {
+  element: BaseElementType;
+
   input: Input;
 };
 
-class Dropzone {
-  element: HTMLElement;
+class _Fetcher<BaseElementType extends HTMLElement = HTMLElement> {
+  element: BaseElementType;
 
   input: Input;
 
-  constructor({ element, input }: DropzonePropsType) {
+  constructor({ element, input }: _FetcherPropsType<BaseElementType>) {
+    this.element = element;
+
+    this.input = input;
+
+    this.element.addEventListener('click', this._handleElementClick.bind(this));
+  }
+
+  protected _handleElementClick = async () => {
+    if (typeof window.DataTransfer === 'function') {
+      debugger;
+      const url = prompt('Введите URL', '')?.trim() || '';
+
+      if (!url.length) {
+        return;
+      }
+
+      const transfer = new window.DataTransfer();
+
+      try {
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.blob();
+
+        transfer.items.add(
+          new File(
+            [result],
+            `${Math.floor(
+              Math.random() * Math.floor(Math.random() * Date.now())
+            )}`,
+            {
+              lastModified: new Date().getTime(),
+              type: result.type,
+            }
+          )
+        );
+
+        this.input.change({ args: transfer.files });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+}
+
+type DropzonePropsType<BaseElementType extends HTMLElement> = {
+  element: BaseElementType;
+
+  input: Input;
+};
+
+class Dropzone<BaseElementType extends HTMLElement = HTMLElement> {
+  element: BaseElementType;
+
+  input: Input;
+
+  constructor({ element, input }: DropzonePropsType<BaseElementType>) {
     this.element = element;
     this.input = input;
 
@@ -66,26 +129,30 @@ type InputConfigType = {
   maxSizeTotal?: number;
 
   dropzoneElement?: HTMLElement;
+
+  fetcherElement?: HTMLElement;
 };
 
-type InputPropsType = {
-  element: HTMLElement;
+type InputPropsType<BaseElementType extends HTMLElement> = {
+  element: BaseElementType;
 
   config?: InputConfigType;
 };
 
-class Input {
+class Input<BaseElementType extends HTMLElement = HTMLElement> {
   maxSize = 0;
   maxSizeTotal = 0;
 
   maxAmount = 0;
 
-  element: HTMLElement;
+  element: BaseElementType;
   input: HTMLInputElement;
 
   dropzone?: Dropzone;
 
-  constructor({ element, config = {} }: InputPropsType) {
+  fetcher?: _Fetcher;
+
+  constructor({ element, config = {} }: InputPropsType<BaseElementType>) {
     this.element = element;
 
     this.input = document.querySelector(
@@ -114,16 +181,28 @@ class Input {
 
     this.maxAmount = Number.isNaN(maxAmount) ? 0 : maxAmount;
 
-    const dropzoneElement: HTMLElement | null = config.dropzoneElement
-      ? config.dropzoneElement
-      : document.querySelector(
-          `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
-            `${ATTRIBUTE_BASE_ID}`
-          )}"][${ATTRIBUTE_DROPZONE}]`
-        );
+    const dropzoneElement: HTMLElement | null =
+      config.dropzoneElement ||
+      document.querySelector(
+        `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
+          `${ATTRIBUTE_BASE_ID}`
+        )}"][${ATTRIBUTE_DROPZONE}]`
+      );
 
     if (dropzoneElement) {
       this.dropzone = new Dropzone({ element: dropzoneElement, input: this });
+    }
+
+    const fetcherElement: HTMLElement | null =
+      config.fetcherElement ||
+      document.querySelector(
+        `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
+          `${ATTRIBUTE_BASE_ID}`
+        )}"][${_ATTRIBUTE_FETCHER}]`
+      );
+
+    if (fetcherElement) {
+      this.fetcher = new _Fetcher({ element: fetcherElement, input: this });
     }
 
     this.input.addEventListener('input', this._handleInputInput.bind(this));
