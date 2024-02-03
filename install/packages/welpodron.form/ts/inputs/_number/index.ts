@@ -3,105 +3,73 @@ const MODULE_BASE = 'input-number';
 
 const ATTRIBUTE_BASE = `data-w-${MODULE_BASE}`;
 const ATTRIBUTE_BASE_ID = `${ATTRIBUTE_BASE}-id`;
+
 const ATTRIBUTE_INPUT = `${ATTRIBUTE_BASE}-input`;
+
 const ATTRIBUTE_CONTROL = `${ATTRIBUTE_BASE}-control`;
-const ATTRIBUTE_CONTROL_ACTIVE = `${ATTRIBUTE_CONTROL}-active`;
+
 const ATTRIBUTE_ACTION = `${ATTRIBUTE_BASE}-action`;
 const ATTRIBUTE_ACTION_ARGS = `${ATTRIBUTE_ACTION}-args`;
 const ATTRIBUTE_ACTION_FLUSH = `${ATTRIBUTE_ACTION}-flush`;
-const ATTRIBUTE_ACTION_FORCE = `${ATTRIBUTE_ACTION}-force`;
 
-type InputConfigType = {};
+type InputConfigType = {
+  maxValue?: number;
+  minValue?: number;
+};
 
-type InputPropsType = {
-  element: HTMLElement;
+type InputPropsType<BaseElementType extends HTMLElement> = {
+  element: BaseElementType;
+
   config?: InputConfigType;
 };
 
-class Input {
-  supportedActions = ['change', 'set'];
+class Input<BaseElementType extends HTMLElement = HTMLElement> {
+  maxValue = NaN;
+  minValue = NaN;
 
-  element: HTMLElement;
+  static readonly SUPPORTED_ACTIONS = ['change', 'set'];
 
-  constructor({ element, config = {} }: InputPropsType) {
+  element: BaseElementType;
+
+  input: HTMLInputElement;
+
+  constructor({ element, config = {} }: InputPropsType<BaseElementType>) {
     this.element = element;
 
-    document.removeEventListener('click', this.handleDocumentClick);
-    document.removeEventListener('input', this.handleDocumentInput);
-
-    document.addEventListener('click', this.handleDocumentClick);
-    document.addEventListener('input', this.handleDocumentInput);
-  }
-
-  handleDocumentInput = (event: Event) => {
-    //TODO: Ну тут нужна одна шина событий, а не такое вот вот :c
-    if (!document.contains(this.element)) {
-      document.removeEventListener('click', this.handleDocumentClick);
-      document.removeEventListener('input', this.handleDocumentInput);
-      return;
-    }
-
-    let { target } = event;
-
-    if (!target) {
-      return;
-    }
-
-    target = (target as Element).closest(
+    this.input = document.querySelector(
       `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
         `${ATTRIBUTE_BASE_ID}`
       )}"][${ATTRIBUTE_INPUT}]`
-    );
+    ) as HTMLInputElement;
 
-    if (!target || !(target instanceof HTMLInputElement)) {
-      return;
-    }
+    this.maxValue =
+      config.maxValue != null
+        ? Number(config.maxValue)
+        : this.input.hasAttribute('max')
+        ? Number(this.input.max)
+        : NaN;
 
+    this.minValue =
+      config.minValue != null
+        ? Number(config.minValue)
+        : this.input.hasAttribute('min')
+        ? Number(this.input.min)
+        : NaN;
+
+    document.addEventListener('click', this._handleDocumentClick.bind(this));
+
+    this.input.addEventListener('input', this._handleInputInput.bind(this));
+  }
+
+  protected _handleInputInput = (event: Event) => {
     if (!event.isTrusted) {
       return;
     }
 
-    event.preventDefault();
-
-    let inputValue = parseInt(target.value);
-
-    if (isNaN(inputValue)) {
-      target.value = '0';
-    }
-
-    inputValue = parseInt(target.value);
-
-    if (target.min) {
-      if (inputValue < parseInt(target.min)) {
-        target.value = target.min;
-      }
-    }
-
-    inputValue = parseInt(target.value);
-
-    if (target.max) {
-      if (inputValue > parseInt(target.max)) {
-        target.value = target.max;
-      }
-    }
-
-    inputValue = parseInt(target.value);
-
-    if (isNaN(inputValue)) {
-      target.value = '';
-    }
-
-    const _event = new Event('input', { bubbles: true, cancelable: true });
-    target.dispatchEvent(_event);
+    this.change({ args: this.input.value });
   };
 
-  handleDocumentClick = (event: MouseEvent) => {
-    if (!document.contains(this.element)) {
-      document.removeEventListener('click', this.handleDocumentClick);
-      document.removeEventListener('input', this.handleDocumentInput);
-      return;
-    }
-
+  protected _handleDocumentClick = (event: MouseEvent) => {
     let { target } = event;
 
     if (!target) {
@@ -132,7 +100,7 @@ class Input {
       event.preventDefault();
     }
 
-    if (!action || !this.supportedActions.includes(action as string)) {
+    if (!action || !Input.SUPPORTED_ACTIONS.includes(action as string)) {
       return;
     }
 
@@ -146,126 +114,57 @@ class Input {
     }
   };
 
-  change = ({ args, event }: { args?: unknown; event?: Event }) => {
-    if (!args) {
-      return;
+  set = ({ args, event }: { args?: string | number; event?: Event }) => {
+    const beforeValue = this.input.value;
+
+    this.input.value = args + '';
+
+    if (beforeValue !== this.input.value) {
+      const _event = new Event('input', {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      this.input.dispatchEvent(_event);
     }
-
-    const inputs = this.element.querySelectorAll(
-      `[${ATTRIBUTE_INPUT}][${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
-        `${ATTRIBUTE_BASE_ID}`
-      )}"]`
-    ) as NodeListOf<HTMLInputElement>;
-
-    inputs.forEach((input) => {
-      const beforeInputValue = input.value;
-      let inputValue = parseInt(input.value);
-      const changeValue = parseInt(args as string);
-
-      input.value = `${inputValue + changeValue}`;
-
-      inputValue = parseInt(input.value);
-
-      if (input.min) {
-        if (inputValue + changeValue < parseInt(input.min)) {
-          input.value = input.min;
-        }
-      }
-
-      inputValue = parseInt(input.value);
-
-      if (input.max) {
-        if (inputValue + changeValue > parseInt(input.max)) {
-          input.value = input.max;
-        }
-      }
-
-      inputValue = parseInt(input.value);
-
-      if (isNaN(inputValue)) {
-        input.value = '';
-      }
-
-      if (beforeInputValue !== input.value) {
-        const _event = new Event('input', {
-          bubbles: true,
-          cancelable: true,
-        });
-        input.dispatchEvent(_event);
-      }
-    });
   };
 
-  set = ({ args, event }: { args?: unknown; event?: Event }) => {
-    if (!args) {
-      return;
+  change = ({ args, event }: { args?: string | number; event?: Event }) => {
+    debugger;
+    const beforeValue = this.input.value;
+
+    if (typeof args === 'string' && args.trim() === '') {
+      this.input.value = '';
+    } else {
+      let changedValue: string | number = Number(args);
+
+      if (!Number.isNaN(this.minValue)) {
+        if (changedValue < this.minValue) {
+          changedValue = this.minValue;
+        }
+      }
+
+      if (!Number.isNaN(this.maxValue)) {
+        if (changedValue > this.maxValue) {
+          changedValue = this.maxValue;
+        }
+      }
+
+      if (Number.isNaN(changedValue) || !Number.isFinite(changedValue)) {
+        changedValue = '';
+      }
+
+      this.input.value = changedValue + '';
     }
 
-    let isForced = false;
+    if (beforeValue !== this.input.value) {
+      const _event = new Event('input', {
+        bubbles: true,
+        cancelable: true,
+      });
 
-    if (event?.target) {
-      const target = (event?.target as Element).closest(
-        `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
-          `${ATTRIBUTE_BASE_ID}`
-        )}"][${ATTRIBUTE_CONTROL}][${ATTRIBUTE_ACTION}]`
-      );
-
-      if (target && target.hasAttribute(ATTRIBUTE_ACTION_FORCE)) {
-        isForced = true;
-      }
+      this.input.dispatchEvent(_event);
     }
-
-    const inputs = this.element.querySelectorAll(
-      `[${ATTRIBUTE_INPUT}][${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
-        `${ATTRIBUTE_BASE_ID}`
-      )}"]`
-    ) as NodeListOf<HTMLInputElement>;
-
-    inputs.forEach((input) => {
-      const beforeInputValue = input.value;
-      let inputValue = parseInt(input.value);
-      const changeValue = args as string;
-
-      input.value = changeValue;
-
-      if (!isForced) {
-        inputValue = parseInt(input.value);
-
-        if (isNaN(inputValue)) {
-          input.value = '0';
-        }
-
-        inputValue = parseInt(input.value);
-
-        if (input.min) {
-          if (inputValue < parseInt(input.min)) {
-            input.value = input.min;
-          }
-        }
-
-        inputValue = parseInt(input.value);
-
-        if (input.max) {
-          if (inputValue > parseInt(input.max)) {
-            input.value = input.max;
-          }
-        }
-
-        inputValue = parseInt(input.value);
-
-        if (isNaN(inputValue)) {
-          input.value = '';
-        }
-      }
-
-      if (beforeInputValue !== input.value) {
-        const _event = new Event('input', {
-          bubbles: true,
-          cancelable: true,
-        });
-        input.dispatchEvent(_event);
-      }
-    });
   };
 }
 

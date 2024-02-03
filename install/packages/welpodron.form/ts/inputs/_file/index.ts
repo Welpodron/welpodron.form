@@ -10,17 +10,28 @@ const ATTRIBUTE_BASE_MAX_SIZE_TOTAL = `${ATTRIBUTE_BASE}-max-size-total`;
 const ATTRIBUTE_INPUT = `${ATTRIBUTE_BASE}-input`;
 
 const ATTRIBUTE_CONTROL = `${ATTRIBUTE_BASE}-control`;
-const ATTRIBUTE_CONTROL_ACTIVE = `${ATTRIBUTE_CONTROL}-active`;
 
 const ATTRIBUTE_ACTION = `${ATTRIBUTE_BASE}-action`;
 const ATTRIBUTE_ACTION_ARGS = `${ATTRIBUTE_ACTION}-args`;
 const ATTRIBUTE_ACTION_FLUSH = `${ATTRIBUTE_ACTION}-flush`;
-const ATTRIBUTE_ACTION_FORCE = `${ATTRIBUTE_ACTION}-force`;
 
 const ATTRIBUTE_DROPZONE = `${ATTRIBUTE_BASE}-dropzone`;
 const ATTRIBUTE_DROPZONE_ACTIVE = `${ATTRIBUTE_DROPZONE}-active`;
 
 const _ATTRIBUTE_FETCHER = `${ATTRIBUTE_BASE}-fetcher`;
+
+//! WARNING WILL BE MOVED TO CORE
+// Original: https://stackoverflow.com/questions/6122571/simple-non-secure-hash-function-for-javascript
+// thanks to Barak and Vitim.us
+const _hash = (str: string) => {
+  let hash = 0;
+  for (let i = 0, len = str.length; i < len; i++) {
+    let chr = str.charCodeAt(i);
+    hash = (hash << 5) - hash + chr;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return hash;
+};
 
 type _FetcherPropsType<BaseElementType extends HTMLElement> = {
   element: BaseElementType;
@@ -33,17 +44,20 @@ class _Fetcher<BaseElementType extends HTMLElement = HTMLElement> {
 
   input: Input;
 
+  controller: AbortController;
+
   constructor({ element, input }: _FetcherPropsType<BaseElementType>) {
     this.element = element;
 
     this.input = input;
+
+    this.controller = new window.AbortController();
 
     this.element.addEventListener('click', this._handleElementClick.bind(this));
   }
 
   protected _handleElementClick = async () => {
     if (typeof window.DataTransfer === 'function') {
-      debugger;
       const url = prompt('Введите URL', '')?.trim() || '';
 
       if (!url.length) {
@@ -53,7 +67,14 @@ class _Fetcher<BaseElementType extends HTMLElement = HTMLElement> {
       const transfer = new window.DataTransfer();
 
       try {
-        const response = await fetch(url);
+        this.controller = new window.AbortController();
+
+        const response = await fetch(url, {
+          signal: this.controller.signal,
+          mode: 'no-cors',
+        });
+
+        console.log('finished');
 
         if (!response.ok) {
           throw new Error(`${response.status}: ${response.statusText}`);
@@ -76,7 +97,9 @@ class _Fetcher<BaseElementType extends HTMLElement = HTMLElement> {
 
         this.input.change({ args: transfer.files });
       } catch (error) {
-        console.error(error);
+        if (!this.controller.signal.aborted) {
+          console.error(error);
+        }
       }
     }
   };
@@ -117,6 +140,10 @@ class Dropzone<BaseElementType extends HTMLElement = HTMLElement> {
 
   protected _handleElementDrop = (event: DragEvent) => {
     if (event.dataTransfer && event.dataTransfer.files) {
+      if (this.input.fetcher) {
+        this.input.fetcher.controller.abort();
+      }
+
       this.input.change({ args: event.dataTransfer.files });
     }
   };
@@ -140,6 +167,8 @@ type InputPropsType<BaseElementType extends HTMLElement> = {
 };
 
 class Input<BaseElementType extends HTMLElement = HTMLElement> {
+  static readonly SUPPORTED_ACTIONS = ['change', 'remove'];
+
   maxSize = 0;
   maxSizeTotal = 0;
 
@@ -206,13 +235,25 @@ class Input<BaseElementType extends HTMLElement = HTMLElement> {
     }
 
     this.input.addEventListener('input', this._handleInputInput.bind(this));
+
+    document.addEventListener('click', this._handleDocumentClick.bind(this));
   }
 
   change = ({ args, event }: { args?: FileList | null; event?: Event }) => {
-    debugger;
+    if (this.fetcher) {
+      this.fetcher.controller.abort();
+    }
+
+    const beforeValue = this.input.files
+      ? [...this.input.files]
+          .map((file) =>
+            _hash(file.lastModified + file.name + file.size + file.type)
+          )
+          .sort()
+      : [];
 
     if (typeof window.DataTransfer === 'function') {
-      if (args) {
+      if (args instanceof FileList) {
         let i = 0;
 
         const transfer = new window.DataTransfer();
@@ -251,12 +292,77 @@ class Input<BaseElementType extends HTMLElement = HTMLElement> {
       }
     }
 
-    const _event = new Event('input', {
-      bubbles: true,
-      cancelable: true,
-    });
+    const afterValue = this.input.files
+      ? [...this.input.files]
+          .map((file) =>
+            _hash(file.lastModified + file.name + file.size + file.type)
+          )
+          .sort()
+      : [];
 
-    this.input.dispatchEvent(_event);
+    if (
+      beforeValue.length !== afterValue.length ||
+      beforeValue.some((hash, index) => hash !== afterValue[index])
+    ) {
+      const _event = new Event('input', {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      this.input.dispatchEvent(_event);
+    }
+  };
+
+  remove = ({ args, event }: { args?: string | number; event?: Event }) => {
+    if (this.fetcher) {
+      this.fetcher.controller.abort();
+    }
+
+    if (!this.input.files?.length) {
+      return;
+    }
+
+    const beforeValue = this.input.files
+      ? [...this.input.files]
+          .map((file) =>
+            _hash(file.lastModified + file.name + file.size + file.type)
+          )
+          .sort()
+      : [];
+
+    if (typeof window.DataTransfer === 'function') {
+      const transfer = new window.DataTransfer();
+
+      for (let i = 0; i < this.input.files.length; i++) {
+        if (i == args) {
+          continue;
+        }
+
+        transfer.items.add(this.input.files[i]);
+      }
+
+      this.input.files = transfer.files;
+    }
+
+    const afterValue = this.input.files
+      ? [...this.input.files]
+          .map((file) =>
+            _hash(file.lastModified + file.name + file.size + file.type)
+          )
+          .sort()
+      : [];
+
+    if (
+      beforeValue.length !== afterValue.length ||
+      beforeValue.some((hash, index) => hash !== afterValue[index])
+    ) {
+      const _event = new Event('input', {
+        bubbles: true,
+        cancelable: true,
+      });
+
+      this.input.dispatchEvent(_event);
+    }
   };
 
   protected _handleInputInput = (event: Event) => {
@@ -266,4 +372,51 @@ class Input<BaseElementType extends HTMLElement = HTMLElement> {
 
     this.change({ args: this.input.files });
   };
+
+  protected _handleDocumentClick = (event: MouseEvent) => {
+    let { target } = event;
+
+    if (!target) {
+      return;
+    }
+
+    target = (target as Element).closest(
+      `[${ATTRIBUTE_BASE_ID}="${this.element.getAttribute(
+        `${ATTRIBUTE_BASE_ID}`
+      )}"][${ATTRIBUTE_CONTROL}][${ATTRIBUTE_ACTION}]`
+    );
+
+    if (!target) {
+      return;
+    }
+
+    const action = (target as Element).getAttribute(
+      ATTRIBUTE_ACTION
+    ) as keyof this;
+
+    const actionArgs = (target as Element).getAttribute(ATTRIBUTE_ACTION_ARGS);
+
+    const actionFlush = (target as Element).getAttribute(
+      ATTRIBUTE_ACTION_FLUSH
+    );
+
+    if (!actionFlush) {
+      event.preventDefault();
+    }
+
+    if (!action || !Input.SUPPORTED_ACTIONS.includes(action as string)) {
+      return;
+    }
+
+    const actionFunc = this[action] as any;
+
+    if (actionFunc instanceof Function) {
+      return actionFunc({
+        args: actionArgs,
+        event,
+      });
+    }
+  };
 }
+
+export { Input as inputFile };
