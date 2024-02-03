@@ -71,10 +71,7 @@ class _Fetcher<BaseElementType extends HTMLElement = HTMLElement> {
 
         const response = await fetch(url, {
           signal: this.controller.signal,
-          mode: 'no-cors',
         });
-
-        console.log('finished');
 
         if (!response.ok) {
           throw new Error(`${response.status}: ${response.statusText}`);
