@@ -20,6 +20,11 @@ CJSCore::RegisterExt('welpodron.form.inputs.number', [
     'skip_core' => true
 ]);
 
+CJSCore::RegisterExt('welpodron.form.inputs.file', [
+    'js' => '/local/packages/welpodron.form/iife/inputs/_file/index.js',
+    'skip_core' => true
+]);
+
 CJSCore::RegisterExt('welpodron.form.inputs.calendar', [
     'js' => '/local/packages/welpodron.form/iife/inputs/_calendar/index.js',
     'skip_core' => true
