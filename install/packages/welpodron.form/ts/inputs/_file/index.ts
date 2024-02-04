@@ -234,6 +234,7 @@ class Input<BaseElementType extends HTMLElement = HTMLElement> {
     this.input.addEventListener('input', this._handleInputInput.bind(this));
 
     document.addEventListener('click', this._handleDocumentClick.bind(this));
+    document.addEventListener('paste', this._handleDocumentPaste.bind(this));
   }
 
   change = ({ args, event }: { args?: FileList | null; event?: Event }) => {
@@ -412,6 +413,14 @@ class Input<BaseElementType extends HTMLElement = HTMLElement> {
         args: actionArgs,
         event,
       });
+    }
+  };
+
+  protected _handleDocumentPaste = (event: ClipboardEvent) => {
+    if (this.element.contains(document.activeElement)) {
+      if (event.clipboardData && event.clipboardData.files) {
+        this.change({ args: event.clipboardData.files });
+      }
     }
   };
 }
